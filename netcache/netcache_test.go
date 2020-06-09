@@ -13,7 +13,7 @@ func isready(nc *NetCache, peers ...PeerAddress) bool {
 	for _,p := range peers {
 		if c,ok := nc.cache[p]; ok {
 			select {
-				case _, ok = <- c.ready:
+				case <-c.ready:
 				default:
 					return false
 			}
@@ -28,7 +28,7 @@ func isnotready(nc *NetCache, peers ...PeerAddress) bool {
 	for _,p := range peers {
 		if c,ok := nc.cache[p]; ok {
 			select {
-			case _, ok = <- c.ready:
+			case <-c.ready:
 				return false
 			default:
 				break
