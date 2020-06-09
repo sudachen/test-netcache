@@ -16,10 +16,19 @@ type ConnectionFactory interface {
 type PeerAddress int32
 
 type ConnectionHolder struct {
-	mu sync.Mutex
-	peer PeerAddress
+	mu         sync.Mutex
+	peer       PeerAddress
 	connection Connection
-	ready chan struct{}
+	ready      chan struct{}
+	done       chan struct{}
+}
+
+func newConnection(peer PeerAddress) *ConnectionHolder {
+	return &ConnectionHolder{
+		ready: make(chan struct{}),
+		done:  make(chan struct{}),
+		peer:  peer,
+	}
 }
 
 func (h *ConnectionHolder) Open(factory ConnectionFactory) {
@@ -33,18 +42,19 @@ func (h *ConnectionHolder) Open(factory ConnectionFactory) {
 		h.connection = c
 		close(h.ready)
 	}
+	close(h.done)
 }
 
 type NetCache struct {
-	mu sync.Mutex
-	cache map[PeerAddress]*ConnectionHolder
-	factory ConnectionFactory
+	mu       sync.Mutex
+	cache    map[PeerAddress]*ConnectionHolder
+	factory  ConnectionFactory
 	shutdown bool
 }
 
 func New(factory ConnectionFactory) *NetCache {
 	return &NetCache{
-		cache: map[PeerAddress]*ConnectionHolder{},
+		cache:   map[PeerAddress]*ConnectionHolder{},
 		factory: factory,
 	}
 }
@@ -61,7 +71,7 @@ func (nc *NetCache) GetConnection(peer PeerAddress) Connection {
 	}
 	c, ok := nc.cache[peer]
 	if !ok {
-		c = &ConnectionHolder{ready: make(chan struct{}),peer:peer}
+		c = newConnection(peer)
 		nc.cache[peer] = c
 		go c.Open(nc.factory)
 	}
@@ -82,7 +92,7 @@ func (nc *NetCache) OnNewRemoteConnection(peer PeerAddress, connection Connectio
 	}
 	c, ok := nc.cache[peer]
 	if !ok {
-		c = &ConnectionHolder{ready: make(chan struct{}),peer:peer}
+		c = newConnection(peer)
 		nc.cache[peer] = c
 	}
 	nc.mu.Unlock()
@@ -104,20 +114,17 @@ func (nc *NetCache) Shutdown() {
 	nc.shutdown = true
 	wg := sync.WaitGroup{}
 	wg.Add(len(nc.cache))
-	for _,c := range nc.cache {
-		go func(ready chan struct{}) {
-			<-ready
+	for _, c := range nc.cache {
+		go func(done chan struct{}) {
+			<-done
 			wg.Done()
-		}(c.ready)
+		}(c.done)
 	}
 	nc.mu.Unlock()
 	wg.Wait()
-	for _,c := range nc.cache {
+	for _, c := range nc.cache {
 		if c.connection != nil {
 			c.connection.Close()
 		}
 	}
 }
-
-
-
