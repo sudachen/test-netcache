@@ -65,6 +65,7 @@ func Test_ConcurrentConnections(t *testing.T) {
 	nc := New(&TestConnectionFactory{})
 	go func() {nc.GetConnection(1)}()
 	go func() {nc.GetConnection(2)}()
+	go func() {nc.GetConnection(2)}()
 	time.Sleep(ConnectionTimeout+time.Second)
 	assert.Assert(t,isready(nc,1,2))
 	nc.Shutdown()

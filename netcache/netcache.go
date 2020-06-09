@@ -66,7 +66,7 @@ func (nc *NetCache) GetConnection(peer PeerAddress) Connection {
 		go c.Open(nc.factory)
 	}
 	nc.mu.Unlock()
-	_,_ = <-c.ready
+	<-c.ready
 	return c.connection
 }
 
@@ -106,7 +106,7 @@ func (nc *NetCache) Shutdown() {
 	wg.Add(len(nc.cache))
 	for _,c := range nc.cache {
 		go func(ready chan struct{}) {
-			_,_ = <-ready
+			<-ready
 			wg.Done()
 		}(c.ready)
 	}
